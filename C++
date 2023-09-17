@@ -1,0 +1,68 @@
+#include <Servo.h>
+#include <ArduinoBLE.h>
+
+// Create Servo objects
+Servo servoPan;  // For pan motion
+Servo servoTilt; // For tilt motion
+
+// Initialize BLE Service
+BLEService customService("180D");
+
+// Create a characteristic under the custom service
+BLECharacteristic customCharacteristic("2A37", BLERead | BLEWrite, 2);
+
+void setup() {
+  Serial.begin(9600);
+  
+  // Initialize BLE
+  if (!BLE.begin()) {
+    Serial.println("Starting BLE failed!");
+    while (1);
+  }
+
+  // Custom Characteristics
+  BLE.setLocalName("MyArduinoBLE");
+  BLE.setAdvertisedService(customService);
+  customService.addCharacteristic(customCharacteristic);
+  BLE.addService(customService);
+  
+  // Set initial value of the characteristic
+  byte zeroArray[2] = {0, 0};
+  customCharacteristic.writeValue(zeroArray, 2);
+  
+  // Start advertising
+  BLE.advertise();
+  
+  Serial.println("Bluetooth device active, waiting for connections...");
+
+  // Initialize Servos with pulse width limits
+  servoPan.attach(9, 500, 2500);
+  servoTilt.attach(10, 500, 2500);
+}
+
+void loop() {
+  // Wait for a BLE central to connect
+  BLEDevice central = BLE.central();
+
+  if (central) {
+    Serial.print("Connected to central: ");
+    Serial.println(central.address());
+    
+    while (central.connected()) {
+      if (customCharacteristic.written()) {
+        byte command[2];
+        customCharacteristic.readValue(command, 2);
+        
+        // Directly get the pan and tilt angles
+        int panAngle = command[0];
+        int tiltAngle = command[1];
+        
+        // Write angles to servos
+        servoPan.write(panAngle);
+        servoTilt.write(tiltAngle);
+      }
+    }
+    Serial.print("Disconnected from central: ");
+    Serial.println(central.address());
+  }
+}
