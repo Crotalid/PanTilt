@@ -1,0 +1,54 @@
+import asyncio
+from bleak import BleakClient
+import pygame
+import sys
+
+async def ble_task(address, client):
+    print("Connected:", client.is_connected)
+
+    while True:
+        await asyncio.sleep(0.1)
+
+async def gui_task(client):
+    pygame.init()
+    screen = pygame.display.set_mode((400, 300))
+
+    try:
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    raise KeyboardInterrupt
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        raise KeyboardInterrupt
+                elif event.type == pygame.MOUSEMOTION:
+                    x, y = event.pos
+
+                    # Mapping and constraints
+                    pan_angle = int(((300 - y) / 300) * 35) + 110
+                    tilt_angle = int((x / 400) * 270)
+
+                    # Constrain pan_angle to a maximum of 145 and a minimum of 110
+                    pan_angle = min(145, max(110, pan_angle))
+                    # Constrain tilt_angle to a maximum of 255
+                    tilt_angle = min(255, max(0, tilt_angle))
+
+                    # Create bytearray
+                    command = bytearray([pan_angle, tilt_angle])
+
+                    await client.write_gatt_char("Your UUID Here", command)
+
+            await asyncio.sleep(0.016)
+    except KeyboardInterrupt:
+        # Center the servos
+        command = bytearray([135, 135])
+        await client.write_gatt_char("Your UUID Here", command)
+        sys.exit(0)
+
+async def main():
+    address = "Your ArduinoBLE Address Here"
+    async with BleakClient(address) as client:
+        await asyncio.gather(ble_task(address, client), gui_task(client))
+
+if __name__ == "__main__":
+    asyncio.run(main())
